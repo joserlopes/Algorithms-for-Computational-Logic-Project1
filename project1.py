@@ -96,6 +96,8 @@ for i in range(1, n_cities * 2 + 1):
     # I must have left every city and arrived at every city
     wcnf.append([i])
 
+## NOTE: This next two set of clauses are what force the base city to be the first and the last!!
+
 # If I haven't left base city, I can't have left any other city
 for i in range(2, n_cities + 1):
     wcnf.append([1, -i])
@@ -144,23 +146,21 @@ for i in range(n_flights):
 
 for city in cities:
     nights = int(city["nights"])
-    # nights = None
-    # if city["nights"] is not None:
-    #     nights = int(city["nights"])
     for i in range(n_flights):
         flightA = flights[i]
         idA = flightA["id"] + n_cities * 2
-        if flightA["dest_airport"] == city["airport"]:
-            if all(
-                map(
-                    lambda x: not after_k_nights(x["date"], nights, flightA["date"])
-                    if x["og_airport"] == city["airport"]
-                    else True,
-                    flights,
-                )
-            ):
-                # This flight surely cannot be taken as there are no flights k nights after that depart from that same city
-                wcnf.append([-idA])
+        # TODO: Review this clause, because it might help the SAT solver
+        # if flightA["dest_airport"] == city["airport"]:
+        #     if all(
+        #         map(
+        #             lambda x: not after_k_nights(x["date"], nights, flightA["date"])
+        #             if x["og_airport"] == city["airport"] and airport_to_city(x["og_airport"])["nights"] != 0
+        #             else True,
+        #             flights,
+        #         )
+        #     ):
+        #         # This flight surely cannot be taken as there are no flights k nights after that depart from that same city
+        #         wcnf.append([-idA])
         # All the flights that don't depart k nights after the one taken have to be false
         for j in range(i + 1, n_flights):
             flightB = flights[j]
@@ -175,7 +175,6 @@ for city in cities:
 
 # Number of flights has to be equal to the number of cities
 lits = [i for i in range(n_cities * 2 + 1, n_flights + n_cities * 2 + 1)]
-# print(lits)
 enc = CardEnc.equals(
     lits=lits, bound=n_cities, top_id=wcnf.nv, encoding=EncType.seqcounter
 )
@@ -200,7 +199,7 @@ def pretty_print_solution(solution):
             chosen_flights += (
                 f"{date} {og_city} {dest_city} {dep_time} {flight_price}\n"
             )
-    return f"{total_price}\n{chosen_flights}"
+    print(f"{total_price}\n{chosen_flights}".strip())
 
 
 solver = RC2(wcnf)
@@ -208,4 +207,4 @@ solver = RC2(wcnf)
 # print(wcnf.soft)
 solution = solver.compute()
 # print(solution)
-print(pretty_print_solution(solution), end="")
+pretty_print_solution(solution)
