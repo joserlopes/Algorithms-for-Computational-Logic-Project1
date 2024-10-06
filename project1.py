@@ -6,9 +6,9 @@ import sys
 from pysat.card import CardEnc, EncType
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
-from pysat.pb import *
 
 from datetime import datetime
+from collections import defaultdict
 
 base_city = None
 n_cities = 0
@@ -107,25 +107,40 @@ for i in range(n_cities + 2, n_cities * 2 + 1):
     arrived_at_base_city = n_cities + 1
     wcnf.append([-arrived_at_base_city, i])
 
+same_og = {}
+same_dest = {}
 for i in range(n_flights):
     flightA = flights[i]
     idA = flightA["id"] + n_cities * 2
-    og_city_clause = airport_to_clause(flightA["og_airport"])
-    dest_city_clause = airport_to_clause(flightA["dest_airport"]) + n_cities
+    og_airport = flightA["og_airport"]
+    dest_airport = flightA["dest_airport"]
+    og_city_clause = airport_to_clause(og_airport)
+    dest_city_clause = airport_to_clause(dest_airport) + n_cities
     # If I have left city i then ci must be true
     wcnf.append([-idA, og_city_clause])
     # If I have arrived at city j then c'i must be true
     wcnf.append([-idA, dest_city_clause])
     # Minimize cost of flights
     wcnf.append([-idA], weight=flightA["price"])
+
+    if og_airport not in same_og:
+        same_og[og_airport] = [idA]
+    else:
+        same_og[og_airport].append(idA)
+
+    if dest_airport not in same_dest:
+        same_dest[dest_airport] = [idA]
+    else:
+        same_dest[dest_airport].append(idA)
+
     for j in range(i + 1, n_flights):
         flightB = flights[j]
         idB = flightB["id"] + n_cities * 2
         if idA != idB:
-            # If I have left a city, no more flights from that city can exist.
-            if flightA["og_airport"] == flightB["og_airport"]:
-                if ([-idA, -idB]) not in wcnf.hard:
-                    wcnf.append([-idA, -idB])
+            # # If I have left a city, no more flights from that city can exist.
+            # if flightA["og_airport"] == flightB["og_airport"]:
+            #     if ([-idA, -idB]) not in wcnf.hard:
+            #         wcnf.append([-idA, -idB])
             # If I have left a city, no more flights to that city can exist, except for base.
             if (
                 flightA["og_airport"] == flightB["dest_airport"]
@@ -133,34 +148,22 @@ for i in range(n_flights):
             ):
                 if ([-idA, -idB]) not in wcnf.hard:
                     wcnf.append([-idA, -idB])
-            # If I have arrived at a city, no more flights to that city can exist.
-            if flightA["dest_airport"] == flightB["dest_airport"]:
-                if ([-idA, -idB]) not in wcnf.hard:
-                    wcnf.append([-idA, -idB])
-            # If I have arrived at _base_ city. No more flights can be taken.
-            if (
-                airport_to_city(flightA["dest_airport"])["nights"] == 0
-                and airport_to_city(flightB["dest_airport"])["nights"] == 0
-            ):
-                wcnf.append([-idA, -idB])
+            # # If I have arrived at a city, no more flights to that city can exist.
+            # if flightA["dest_airport"] == flightB["dest_airport"]:
+            #     if ([-idA, -idB]) not in wcnf.hard:
+            #         wcnf.append([-idA, -idB])
+            # # If I have arrived at _base_ city. No more flights can be taken.
+            # if (
+            #     airport_to_city(flightA["dest_airport"])["nights"] == 0
+            #     and airport_to_city(flightB["dest_airport"])["nights"] == 0
+            # ):
+            #     wcnf.append([-idA, -idB])
 
 for city in cities:
     nights = int(city["nights"])
     for i in range(n_flights):
         flightA = flights[i]
         idA = flightA["id"] + n_cities * 2
-        # TODO: Review this clause, because it might help the SAT solver
-        # if flightA["dest_airport"] == city["airport"]:
-        #     if all(
-        #         map(
-        #             lambda x: not after_k_nights(x["date"], nights, flightA["date"])
-        #             if x["og_airport"] == city["airport"] and airport_to_city(x["og_airport"])["nights"] != 0
-        #             else True,
-        #             flights,
-        #         )
-        #     ):
-        #         # This flight surely cannot be taken as there are no flights k nights after that depart from that same city
-        #         wcnf.append([-idA])
         # All the flights that don't depart k nights after the one taken have to be false
         for j in range(i + 1, n_flights):
             flightB = flights[j]
@@ -176,10 +179,22 @@ for city in cities:
 # Number of flights has to be equal to the number of cities
 lits = [i for i in range(n_cities * 2 + 1, n_flights + n_cities * 2 + 1)]
 enc = CardEnc.equals(
-    lits=lits, bound=n_cities, top_id=wcnf.nv, encoding=EncType.seqcounter
+    lits=lits, bound=n_cities, top_id=wcnf.nv, encoding=EncType.pairwise
 )
 for clause in enc.clauses:
     wcnf.append(clause)
+
+# Can only leave a city once
+for x in same_og.values():
+    enc = CardEnc.equals(lits=x, bound=1, top_id=wcnf.nv, encoding=EncType.pairwise)
+    for clause in enc.clauses:
+        wcnf.append(clause)
+
+# Can only arrive at a city once
+for x in same_dest.values():
+    enc = CardEnc.equals(lits=x, bound=1, top_id=wcnf.nv, encoding=EncType.pairwise)
+    for clause in enc.clauses:
+        wcnf.append(clause)
 
 
 def pretty_print_solution(solution):
@@ -203,8 +218,5 @@ def pretty_print_solution(solution):
 
 
 solver = RC2(wcnf)
-# print(wcnf.hard)
-# print(wcnf.soft)
 solution = solver.compute()
-# print(solution)
 pretty_print_solution(solution)
