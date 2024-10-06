@@ -177,22 +177,22 @@ for city in cities:
 
 
 # Number of flights has to be equal to the number of cities
-lits = [i for i in range(n_cities * 2 + 1, n_flights + n_cities * 2 + 1)]
-enc = CardEnc.equals(
-    lits=lits, bound=n_cities, top_id=wcnf.nv, encoding=EncType.pairwise
-)
-for clause in enc.clauses:
-    wcnf.append(clause)
+# lits = [i for i in range(n_cities * 2 + 1, n_flights + n_cities * 2 + 1)]
+# enc = CardEnc.equals(
+#     lits=lits, bound=n_cities, top_id=wcnf.nv, encoding=EncType.bitwise
+# )
+# for clause in enc.clauses:
+#     wcnf.append(clause)
 
 # Can only leave a city once
 for x in same_og.values():
-    enc = CardEnc.equals(lits=x, bound=1, top_id=wcnf.nv, encoding=EncType.pairwise)
+    enc = CardEnc.equals(lits=x, bound=1, top_id=wcnf.nv, encoding=EncType.seqcounter)
     for clause in enc.clauses:
         wcnf.append(clause)
 
 # Can only arrive at a city once
 for x in same_dest.values():
-    enc = CardEnc.equals(lits=x, bound=1, top_id=wcnf.nv, encoding=EncType.pairwise)
+    enc = CardEnc.equals(lits=x, bound=1, top_id=wcnf.nv, encoding=EncType.bitwise)
     for clause in enc.clauses:
         wcnf.append(clause)
 
