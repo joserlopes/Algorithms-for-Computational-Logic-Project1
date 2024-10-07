@@ -165,7 +165,9 @@ for i in range(n_flights):
     if flight_city["nights"] == 0 and flight_date == last_day:
         wcnf.append([-idA])
 
-    if flight_city["nights"] == 0 and greater_than_k_nights(flight_date, n_nights, last_day):
+    if flight_city["nights"] == 0 and greater_than_k_nights(
+        flight_date, n_nights, last_day
+    ):
         wcnf.append([-idA])
 
     for j in range(i + 1, n_flights):
@@ -257,6 +259,6 @@ def pretty_print_solution(solution):
     print(f"{total_price}\n{chosen_flights}".strip())
 
 
-solver = RC2Stratified(wcnf, solver="g42")
+solver = RC2Stratified(wcnf, solver="mpl", adapt=True)
 solution = solver.compute()
 pretty_print_solution(solution)
