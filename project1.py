@@ -47,7 +47,7 @@ def parse():
             {
                 "name": info[0],
                 "airport": info[1],
-                "nights": info[2],
+                "nights": int(info[2]),
                 "id": id,
             }
         )
@@ -98,6 +98,13 @@ def greater_than_k_nights(dateA, nights, dateB):
     return (dateA - dateB).days > nights
 
 
+def date_difference(dateA, dateB):
+    dateA = datetime.strptime(dateA, date_format)
+    dateB = datetime.strptime(dateB, date_format)
+
+    return dateA - dateB
+
+
 wcnf = WCNFPlus()
 
 parse()
@@ -131,11 +138,13 @@ for i in range(n_flights):
     dest_airport = flightA["dest_airport"]
     og_city_clause = airport_to_clause(og_airport)
     dest_city_clause = airport_to_clause(dest_airport) + n_cities
-    flight_date = flightA["date"]
-    flight_city = airport_to_city(og_airport)
+    dateA = flightA["date"]
+    cityA = airport_to_city(og_airport)
+    dest_city = airport_to_city(dest_airport)
     max_date = (
-        datetime.strptime(flight_date, date_format) + timedelta(days=n_nights)
+        datetime.strptime(dateA, date_format) + timedelta(days=n_nights)
     ).strftime("%d/%m")
+    nightsA = cityA["nights"]
 
     # If I have left city i then ci must be true
     wcnf.append([-idA, og_city_clause])
@@ -154,20 +163,25 @@ for i in range(n_flights):
     else:
         same_dest[dest_airport].append(idA)
 
-    if flight_date not in same_date:
-        same_date[flight_date] = [idA]
+    if dateA not in same_date:
+        same_date[dateA] = [idA]
     else:
-        same_date[flight_date].append(idA)
+        same_date[dateA].append(idA)
 
-    if flight_city["nights"] != 0 and flight_date == first_day:
+    # I can't be leaving cities other than base at the first day...
+    if nightsA != 0 and dateA == first_day:
         wcnf.append([-idA])
 
-    if flight_city["nights"] == 0 and flight_date == last_day:
+    # I can't be leaving the base city at the last day...
+    if nightsA == 0 and dateA == last_day:
         wcnf.append([-idA])
 
-    if flight_city["nights"] == 0 and greater_than_k_nights(
-        flight_date, n_nights, last_day
-    ):
+    # If k nights haven't passed, I can't be going back to base
+    if dest_city["nights"] == 0 and date_difference(dateA, first_day).days < n_nights:
+        wcnf.append([-idA])
+
+    # If I'm leaving base city, make sure to have at least n_nigths nights left
+    if nightsA == 0 and date_difference(last_day, dateA).days < n_nights:
         wcnf.append([-idA])
 
     for j in range(i + 1, n_flights):
@@ -181,44 +195,11 @@ for i in range(n_flights):
                 and airport_to_city(flightA["og_airport"])["nights"] != 0
             ):
                 wcnf.append([-idA, -idB])
-            if flight_city["nights"] == 0:
-                if greater_than_k_nights(flight_date, n_nights, flightB_date):
-                    wcnf.append([-idB])
-
-for city in cities:
-    nights = int(city["nights"])
-    for i in range(n_flights):
-        flights_leaving_a = []
-        flightA = flights[i]
-        idA = flightA["id"] + n_cities * 2
-        # All the flights that don't depart k nights after the one taken have to be false
-        for j in range(i + 1, n_flights):
-            flightB = flights[j]
-            idB = flightB["id"] + n_cities * 2
-            if flightA != flightB and city["nights"] != 0:
-                if flightA["dest_airport"] == city["airport"]:
-                    if flightA["dest_airport"] == flightB[
-                        "og_airport"
-                    ] and not after_k_nights(flightB["date"], nights, flightA["date"]):
-                        wcnf.append([-idA, -idB])
-            if (
-                flightA["dest_airport"] == city["airport"]
-                and airport_to_city(flightA["og_airport"])["nights"] != 0
-            ):
-                if (
-                    flightB["og_airport"] == flightA["dest_airport"]
-                    and city["nights"] != 0
-                ):
-                    flights_leaving_a.append(flightB)
-        if flights_leaving_a != []:
-            # This flight certainly cannot be taken
-            if not any(
-                map(
-                    lambda x: after_k_nights(x["date"], nights, flightA["date"]),
-                    flights_leaving_a,
-                )
-            ):
-                wcnf.append([-idA])
+            # If I take a flight to city A, then a flight from city A that is not k nights after can't be true
+            nightsB = airport_to_city(dest_airport)["nights"]
+            if flightA["dest_airport"] == flightB["og_airport"]:
+                if not after_k_nights(flightB["date"], nightsB, flightA["date"]):
+                    wcnf.append([-idA, -idB])
 
 # Can only leave a city once
 for x in same_og.values():
@@ -259,6 +240,6 @@ def pretty_print_solution(solution):
     print(f"{total_price}\n{chosen_flights}".strip())
 
 
-solver = RC2Stratified(wcnf, solver="mpl", adapt=True)
+solver = RC2Stratified(wcnf, solver="g4")
 solution = solver.compute()
 pretty_print_solution(solution)
