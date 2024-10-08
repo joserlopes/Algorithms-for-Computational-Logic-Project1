@@ -4,9 +4,8 @@
 
 import sys
 from pysat.card import CardEnc, EncType
-from pysat.examples.rc2 import RC2, RC2Stratified
-from pysat.examples.lsu import LSU
-from pysat.formula import WCNF, WCNFPlus
+from pysat.examples.rc2 import RC2Stratified
+from pysat.formula import WCNFPlus
 
 from datetime import datetime, timedelta
 
